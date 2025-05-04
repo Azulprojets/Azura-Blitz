@@ -451,12 +451,10 @@
         #shipping-form input:invalid + .error, #shipping-form select:invalid + .error {
             display: block;
         }
-        #card-element {
-            padding: 0.8rem;
-            border: 2px solid var(--gold-accent);
-            background: var(--metallic-black);
-            color: var(--steel-white);
-            border-radius: 8px;
+        #card-error {
+            color: #ff5555;
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
         }
         #order-preview ul {
             list-style: none;
@@ -1238,7 +1236,7 @@
                         <img src="images/penhaligons-the-ingenue-cousin-flora.jpg" alt="The Ingenue Cousin Flora 75mL">
                         <h4>The Ingenue Cousin Flora 75mL</h4>
                         <p class="price">$43.75</p>
-                        <button class="add-to-cart-btn" data-product-id="penhaligons-the-ingenue-cousin-flora-bbg" data-price="43.75">Add to Cart</button>
+                        <button class="add-to-cart-btn" data-product-id="penhaligons-the-ingenue-cousin-flora-bbg" data-price="43.data-price="43.75">Add to Cart</button>
                     </div>
                     <div class="grid-item" data-product="penhaligons-the-uncompromising-sohan-bih">
                         <img src="images/penhaligons-the-uncompromising-sohan.jpg" alt="The Uncompromising Sohan 75mL">
@@ -1965,10 +1963,6 @@
                         <h4>Silver Mountain Water 100mL</h4>
                         <p class="price">$38.50</p>
                         <button class="add-to-cart-btn" data-product-id="creed-silver-mountain-water-100ml" data-price="38.5">Add to Cart</button>
-                        <img src="images/creed-silver-mountain-water.jpg" alt="Silver Mountain Water 100mL">
-                        <h4>Silver Mountain Water 100mL</h4>
-                        <p class="price">$38.50</p>
-                        <button class="add-to-cart-btn" data-product-id="creed-silver-mountain-water-100ml" data-price="38.5">Add to Cart</button>
                     </div>
                     <div class="grid-item" data-product="creed-himalaya-100ml">
                         <img src="images/creed-himalaya.jpg" alt="Himalaya 100mL">
@@ -2056,7 +2050,6 @@
             <div id="order-preview"></div>
             <p id="estimated-delivery"></p>
             <div id="payment-form">
-                <div id="card-element"></div>
                 <div id="card-error" role="alert"></div>
             </div>
             <button id="confirm-order">Confirm Order</button>
@@ -2064,10 +2057,10 @@
     </div>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.6.2"></script>
     <script>
-        const stripe = Stripe('pk_test_your_publishable_key');
-        const elements = stripe.elements();
-        let cardElement;
+        // Initialize Stripe with your publishable key
+        const stripe = Stripe('pk_test_your_publishable_key'); // Replace with your actual Stripe publishable key
 
+        // Product details
         const productDetails = {
             "ysl-mon-paris-edp-90ml": { name: "YSL Mon Paris EDP 90mL", image: "images/ysl-mon-paris.jpg", price: 35, brand: "YSL", type: "EDP", productNo: "EA" },
             "ysl-mon-paris-edp-50ml": { name: "YSL Mon Paris EDP 50mL", image: "images/ysl-mon-paris50mL.jpg", price: 35, brand: "YSL", type: "EDP", productNo: "EC" },
@@ -2272,9 +2265,11 @@
             "creed-love-in-black-75ml": { name: "Creed Love In Black 75mL", image: "images/creed-love-in-black.jpg", price: 38.5, brand: "Creed", type: "Unknown", productNo: "UNKNOWN-CREED-LOVE-IN-BLACK-75" }
         };
 
+        // Initialize cart and constants
         let cart = JSON.parse(localStorage.getItem('cart')) || {};
         const TAX_RATE = 0.08;
         const WEBHOOK_URL = 'https://discord.com/api/webhooks/1368548906878632048/ugDUY41x-8hsJ-XUtiEJGL6dekXncI4bnTUKfpxsTl9_5s57MI4W8meBkXRU48ZcbPUi';
+        const BACKEND_URL = 'https://your-backend-url.com'; // Replace with your actual backend URL
 
         // Utility Functions
         async function logErrorToWebhook(error, context) {
@@ -2331,6 +2326,7 @@
                     snowflake.style.left = `${Math.random() * 100}vw`;
                     snowflake.style.animationDuration = `${Math.random() * 5 + 5}s`;
                     snowflake.style.animationDelay = `${Math.random() * 5}s`;
+                    snowflake.style.opacity = Math.random();
                     container.appendChild(snowflake);
                 }
             } catch (error) {
@@ -2338,24 +2334,13 @@
             }
         }
 
-        function toggleNav() {
-            try {
-                const nav = document.querySelector('nav ul');
-                if (!nav) throw new Error('Navigation not found');
-                nav.classList.toggle('active');
-                const hamburger = validateElement('hamburger', { function: 'toggleNav' });
-                if (hamburger) {
-                    hamburger.setAttribute('aria-expanded', nav.classList.contains('active'));
-                }
-            } catch (error) {
-                logErrorToWebhook(error, { function: 'toggleNav' });
-            }
-        }
-
         function updateCartCount() {
             try {
                 if (!cart || typeof cart !== 'object') throw new Error('Invalid cart data');
-                const count = Object.values(cart).reduce((sum, item) => sum + (item.quantity || 0), 0);
+                const count = Object.values(cart).reduce((sum, item) => {
+                    if (!item || typeof item !== 'object' || !item.quantity) return sum;
+                    return sum + (item.quantity || 0);
+                }, 0);
                 const cartCount = validateElement('cart-count', { function: 'updateCartCount' });
                 if (cartCount) {
                     cartCount.textContent = count;
@@ -2379,12 +2364,18 @@
                     cartItems.innerHTML = '';
                     let subtotal = 0;
 
+                    // Clean up invalid cart entries
+                    for (const id of Object.keys(cart)) {
+                        if (!productDetails[id] || !cart[id] || typeof cart[id] !== 'object' || !cart[id].quantity) {
+                            console.warn(`Removing invalid product ID from cart: ${id}`);
+                            delete cart[id];
+                        }
+                    }
+                    localStorage.setItem('cart', JSON.stringify(cart));
+
                     for (const [id, item] of Object.entries(cart)) {
                         const product = productDetails[id];
-                        if (!product) {
-                            logErrorToWebhook(new Error(`Product not found for ID: ${id}`), { function: 'updateCartView', productId: id });
-                            continue;
-                        }
+                        if (!product) continue;
                         const itemTotal = (item.quantity || 0) * (product.price || 0);
                         subtotal += itemTotal;
 
@@ -2425,59 +2416,19 @@
             }
         }
 
-        function updateQuantity(id, quantity) {
-            try {
-                if (!id || !productDetails[id]) throw new Error('Invalid product ID');
-                quantity = parseInt(quantity, 10);
-                if (isNaN(quantity) || quantity < 1) {
-                    removeFromCart(id);
-                    return;
-                }
-                cart[id] = { ...cart[id], quantity };
-                updateCartView();
-            } catch (error) {
-                logErrorToWebhook(error, { function: 'updateQuantity', productId: id, quantity });
-            }
-        }
-
-        function removeFromCart(id) {
-            try {
-                if (!id || !cart[id]) throw new Error('Invalid or non-existent product ID in cart');
-                const cartItem = document.querySelector(`.cart-item[data-product-id="${id}"]`);
-                if (cartItem) {
-                    cartItem.classList.add('removing');
-                    setTimeout(() => {
-                        delete cart[id];
-                        updateCartView();
-                    }, 300);
-                } else {
-                    delete cart[id];
-                    updateCartView();
-                }
-            } catch (error) {
-                logErrorToWebhook(error, { function: 'removeFromCart', productId: id });
-            }
-        }
-
         function calculateShipping() {
             try {
-                const shippingService = document.getElementById('shipping-service')?.value || 'ground';
                 const isInternational = document.getElementById('is-international')?.checked || false;
-                let totalWeight = Object.entries(cart).reduce((sum, [id, item]) => {
-                    const product = productDetails[id];
-                    return sum + (product ? item.quantity * (parseFloat(product.name.match(/\d+mL/)?.[0]) || 100) : 0);
-                }, 0);
-                let baseCost = totalWeight * 0.05;
-                let serviceMultiplier = { ground: 1, '2day': 2, overnight: 3 }[shippingService] || 1;
-                let internationalMultiplier = isInternational ? 2 : 1;
-                return Math.max(5, baseCost * serviceMultiplier * internationalMultiplier);
+                const shippingService = document.getElementById('shipping-service')?.value || 'ground';
+                const baseRates = { ground: 5, '2day': 15, overnight: 25 };
+                return isInternational ? baseRates[shippingService] * 2 : baseRates[shippingService];
             } catch (error) {
                 logErrorToWebhook(error, { function: 'calculateShipping' });
                 return 5;
             }
         }
 
-        function showCheckoutModal() {
+        async function showCheckoutModal() {
             try {
                 if (Object.keys(cart).length === 0) throw new Error('Cart is empty');
                 const orderPreview = validateElement('order-preview', { function: 'showCheckoutModal' });
@@ -2486,12 +2437,21 @@
 
                 let subtotal = 0;
                 let itemsHtml = '<ul>';
+                const lineItems = [];
                 for (const [id, item] of Object.entries(cart)) {
                     const product = productDetails[id];
                     if (!product) continue;
                     const itemTotal = item.quantity * product.price;
                     subtotal += itemTotal;
                     itemsHtml += `<li>${sanitizeInput(product.name)} x${item.quantity}: $${itemTotal.toFixed(2)}</li>`;
+                    lineItems.push({
+                        price_data: {
+                            currency: 'usd',
+                            product_data: { name: product.name },
+                            unit_amount: Math.round(product.price * 100),
+                        },
+                        quantity: item.quantity,
+                    });
                 }
                 itemsHtml += '</ul>';
 
@@ -2513,12 +2473,13 @@
                 estimatedDelivery.setDate(estimatedDelivery.getDate() + deliveryDays);
                 document.getElementById('estimated-delivery').textContent = `Estimated Delivery: ${estimatedDelivery.toLocaleDateString()}`;
 
-                if (!cardElement) {
-                    cardElement = elements.create('card');
-                    cardElement.mount('#card-element');
-                }
+                // Clear payment form for Stripe Checkout
+                document.getElementById('payment-form').innerHTML = '';
 
                 checkoutModal.classList.add('visible');
+
+                // Store line items for confirm-order
+                document.getElementById('confirm-order').dataset.lineItems = JSON.stringify(lineItems);
             } catch (error) {
                 logErrorToWebhook(error, { function: 'showCheckoutModal', cart });
                 alert('Unable to proceed to checkout. Please try again.');
@@ -2527,6 +2488,7 @@
 
         async function processPayment() {
             try {
+                const lineItems = JSON.parse(document.getElementById('confirm-order').dataset.lineItems || '[]');
                 const shippingDetails = {
                     name: sanitizeInput(document.getElementById('shipping-name')?.value || ''),
                     email: sanitizeInput(document.getElementById('shipping-email')?.value || ''),
@@ -2537,81 +2499,54 @@
                 };
                 if (!Object.values(shippingDetails).every(val => val)) throw new Error('Incomplete shipping details');
 
-                let subtotal = Object.entries(cart).reduce((sum, [id, item]) => {
-                    const product = productDetails[id];
-                    return sum + (product ? item.quantity * product.price : 0);
-                }, 0);
-                const tax = subtotal * TAX_RATE;
-                const shipping = calculateShipping();
-                const total = subtotal + tax + shipping;
-
-                const response = await fetch('/create-payment-intent', {
+                const response = await fetch(`${BACKEND_URL}/create-checkout-session`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amount: Math.round(total * 100) })
+                    body: JSON.stringify({
+                        line_items: lineItems,
+                        mode: 'payment',
+                        success_url: `${window.location.origin}/success`,
+                        cancel_url: `${window.location.origin}/cancel`,
+                        shipping_address_collection: { allowed_countries: ['US', 'CA'] },
+                        shipping_details: shippingDetails
+                    })
                 });
-                const { clientSecret } = await response.json();
-
-                const { error, paymentIntent } = await stripe.confirmCardPayment(clientSecret, {
-                    payment_method: { card: cardElement },
-                    shipping: shippingDetails
-                });
-
-                if (error) throw new Error(`Payment failed: ${error.message}`);
-                if (paymentIntent.status === 'succeeded') {
-                    await sendOrderToWebhook();
-                    await sendEmailConfirmation();
-                    cart = {};
-                    localStorage.setItem('cart', JSON.stringify(cart));
-                    updateCartView();
-                    document.getElementById('checkout-modal').classList.remove('visible');
-                    alert('Order placed successfully! A confirmation email has been sent.');
-                }
+                if (!response.ok) throw new Error('Failed to create checkout session');
+                const { url } = await response.json();
+                window.location.href = url;
             } catch (error) {
                 logErrorToWebhook(error, { function: 'processPayment' });
-                document.getElementById('card-error').textContent = error.message || 'Payment failed. Please try again.';
+                document.getElementById('card-error').textContent = error.message || 'Checkout failed. Please try again.';
             }
         }
 
         async function sendOrderToWebhook() {
             try {
-                const shippingDetails = {
-                    name: sanitizeInput(document.getElementById('shipping-name')?.value || ''),
-                    email: sanitizeInput(document.getElementById('shipping-email')?.value || ''),
-                    address: sanitizeInput(document.getElementById('shipping-address')?.value || ''),
-                    city: sanitizeInput(document.getElementById('shipping-city')?.value || ''),
-                    state: sanitizeInput(document.getElementById('shipping-state')?.value || ''),
-                    zip: sanitizeInput(document.getElementById('shipping-zip')?.value || ''),
-                    service: document.getElementById('shipping-service')?.value || 'ground',
-                    isInternational: document.getElementById('is-international')?.checked || false
+                const orderDetails = {
+                    cart,
+                    shippingDetails: {
+                        name: document.getElementById('shipping-name')?.value,
+                        email: document.getElementById('shipping-email')?.value,
+                        address: document.getElementById('shipping-address')?.value,
+                        city: document.getElementById('shipping-city')?.value,
+                        state: document.getElementById('shipping-state')?.value,
+                        zip: document.getElementById('shipping-zip')?.value
+                    },
+                    total: Object.entries(cart).reduce((sum, [id, item]) => {
+                        const product = productDetails[id];
+                        return sum + (product ? item.quantity * product.price : 0);
+                    }, 0) + (Object.entries(cart).reduce((sum, [id, item]) => {
+                        const product = productDetails[id];
+                        return sum + (product ? item.quantity * product.price : 0);
+                    }, 0) * TAX_RATE) + calculateShipping()
                 };
-                let subtotal = 0;
-                const items = Object.entries(cart).map(([id, item]) => {
-                    const product = productDetails[id];
-                    if (!product) return null;
-                    const itemTotal = item.quantity * product.price;
-                    subtotal += itemTotal;
-                    return `${item.quantity}x ${product.name} (${product.productNo}) - $${itemTotal.toFixed(2)}`;
-                }).filter(item => item);
-
-                const tax = subtotal * TAX_RATE;
-                const shipping = calculateShipping();
-                const total = subtotal + tax + shipping;
-
-                const payload = {
-                    content: null,
-                    embeds: [{
-                        title: 'New Order Received',
-                        description: `**Order Details**\n${items.join('\n')}\n\n**Shipping Details**\nName: ${shippingDetails.name}\nEmail: ${shippingDetails.email}\nAddress: ${shippingDetails.address}, ${shippingDetails.city}, ${shippingDetails.state} ${shippingDetails.zip}\nService: ${shippingDetails.service}\nInternational: ${shippingDetails.isInternational}\n\n**Summary**\nSubtotal: $${subtotal.toFixed(2)}\nTax: $${tax.toFixed(2)}\nShipping: $${shipping.toFixed(2)}\nTotal: $${total.toFixed(2)}`,
-                        color: 0xA37E2C,
-                        timestamp: new Date().toISOString()
-                    }]
-                };
-
                 await fetch(WEBHOOK_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({
+                        content: `New Order: ${JSON.stringify(orderDetails)}`,
+                        username: 'AzulaBlitz Order Bot'
+                    })
                 });
             } catch (error) {
                 logErrorToWebhook(error, { function: 'sendOrderToWebhook' });
@@ -2620,205 +2555,277 @@
 
         async function sendEmailConfirmation() {
             try {
-                const email = sanitizeInput(document.getElementById('shipping-email')?.value || '');
-                if (!email) throw new Error('No email provided for confirmation');
-                let subtotal = 0;
-                const items = Object.entries(cart).map(([id, item]) => {
-                    const product = productDetails[id];
-                    if (!product) return null;
-                    const itemTotal = item.quantity * product.price;
-                    subtotal += itemTotal;
-                    return `${item.quantity}x ${product.name} - $${itemTotal.toFixed(2)}`;
-                }).filter(item => item);
-
-                const tax = subtotal * TAX_RATE;
-                const shipping = calculateShipping();
-                const total = subtotal + tax + shipping;
-
-                const response = await fetch('/send-email', {
+                const email = document.getElementById('shipping-email')?.value;
+                if (!email) throw new Error('No email provided');
+                await fetch(`${BACKEND_URL}/send-email`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         to: email,
                         subject: 'AzulaBlitz Order Confirmation',
-                        body: `Thank you for your order!\n\nOrder Details:\n${items.join('\n')}\n\nSubtotal: $${subtotal.toFixed(2)}\nTax: $${tax.toFixed(2)}\nShipping: $${shipping.toFixed(2)}\nTotal: $${total.toFixed(2)}\n\nWe’ll notify you when your order ships.`
+                        body: `Thank you for your order! Your items will be shipped soon. Details: ${JSON.stringify(cart)}`
                     })
                 });
-                if (!response.ok) throw new Error('Failed to send email confirmation');
             } catch (error) {
                 logErrorToWebhook(error, { function: 'sendEmailConfirmation' });
             }
         }
 
-        const fuse = new Fuse(Object.entries(productDetails).map(([id, product]) => ({ id, ...product })), {
+        // Search and Autocomplete
+        const fuse = new Fuse(Object.entries(productDetails).map(([id, product]) => ({
+            id,
+            name: product.name,
+            brand: product.brand,
+            type: product.type,
+            price: product.price,
+            productNo: product.productNo
+        })), {
             keys: ['name', 'brand', 'type', 'productNo'],
             threshold: 0.3
         });
 
-        const debouncedSearch = debounce((query) => {
+        const searchProducts = debounce((query) => {
             try {
-                query = sanitizeInput(query);
-                const results = query ? fuse.search(query).map(result => result.item) : [];
-                const autocomplete = validateElement('autocomplete', { function: 'performSearch' });
-                const noResults = validateElement('no-results', { function: 'performSearch' });
-                if (!autocomplete || !noResults) throw new Error('Search elements not found');
+                const autocomplete = validateElement('autocomplete', { function: 'searchProducts' });
+                const noResults = validateElement('no-results', { function: 'searchProducts' });
+                if (!autocomplete || !noResults) return;
 
                 autocomplete.innerHTML = '';
-                if (results.length > 0) {
-                    results.slice(0, 5).forEach(product => {
-                        const item = document.createElement('div');
-                        item.className = 'autocomplete-item';
-                        item.innerHTML = `
-                            <span>${sanitizeInput(product.name)}</span>
-                            <span class="product-type">${sanitizeInput(product.brand)} ${sanitizeInput(product.type)}</span>
-                        `;
-                        item.addEventListener('click', () => {
-                            document.getElementById('search-input').value = product.name;
-                            performSearch(product.name);
-                        });
-                        autocomplete.appendChild(item);
-                    });
-                    autocomplete.style.display = 'block';
-                    noResults.style.display = 'none';
-                } else {
+                if (!query) {
                     autocomplete.style.display = 'none';
-                    noResults.style.display = query ? 'block' : 'none';
+                    noResults.style.display = 'none';
+                    document.querySelectorAll('.grid-item').forEach(item => item.classList.remove('hidden'));
+                    return;
                 }
 
+                const results = fuse.search(query);
+                if (results.length === 0) {
+                    noResults.style.display = 'block';
+                    autocomplete.style.display = 'none';
+                    document.querySelectorAll('.grid-item').forEach(item => item.classList.add('hidden'));
+                    return;
+                }
+
+                noResults.style.display = 'none';
+                autocomplete.style.display = 'block';
+                document.querySelectorAll('.grid-item').forEach(item => item.classList.add('hidden'));
+
+                results.slice(0, 5).forEach(result => {
+                    const product = result.item;
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    item.innerHTML = `
+                        <span>${sanitizeInput(product.name)}</span>
+                        <span class="product-type">${sanitizeInput(product.brand)} - $${product.price}</span>
+                    `;
+                    item.addEventListener('click', () => {
+                        document.getElementById('search-input').value = product.name;
+                        autocomplete.style.display = 'none';
+                        document.querySelectorAll('.grid-item').forEach(item => {
+                            item.classList.toggle('hidden', item.dataset.product !== product.id);
+                        });
+                        document.querySelector(`.grid-item[data-product="${product.id}"]`)?.scrollIntoView({ behavior: 'smooth' });
+                    });
+                    autocomplete.appendChild(item);
+                });
+
                 document.querySelectorAll('.grid-item').forEach(item => {
-                    const productId = item.dataset.product;
-                    item.classList.toggle('hidden', query && !results.some(result => result.id === productId));
+                    const isVisible = results.some(result => result.item.id === item.dataset.product);
+                    item.classList.toggle('hidden', !isVisible);
                 });
             } catch (error) {
-                logErrorToWebhook(error, { function: 'performSearch', query });
+                logErrorToWebhook(error, { function: 'searchProducts', query });
             }
         }, 300);
-
-        function performSearch(query) {
-            debouncedSearch(query);
-        }
 
         // Event Listeners
         document.addEventListener('DOMContentLoaded', () => {
             try {
+                // Initialize cart
+                cart = JSON.parse(localStorage.getItem('cart')) || {};
+                if (Array.isArray(cart) || !cart) cart = {};
+                for (const id of Object.keys(cart)) {
+                    if (!productDetails[id] || !cart[id] || typeof cart[id] !== 'object' || !cart[id].quantity) {
+                        console.warn(`Removing invalid cart entry: ${id}`);
+                        delete cart[id];
+                    }
+                }
+                localStorage.setItem('cart', JSON.stringify(cart));
+                updateCartCount();
+
                 createSnowflakes();
-                updateCartView();
 
-                document.getElementById('hamburger')?.addEventListener('click', toggleNav);
-                document.getElementById('cart-icon')?.addEventListener('click', () => {
-                    const cartView = validateElement('cart-view', { event: 'cart-icon click' });
-                    if (cartView) cartView.classList.toggle('visible');
-                });
-                document.getElementById('close-cart')?.addEventListener('click', () => {
-                    const cartView = validateElement('cart-view', { event: 'close-cart click' });
-                    if (cartView) cartView.classList.remove('visible');
-                });
-                document.getElementById('close-modal')?.addEventListener('click', () => {
-                    const checkoutModal = validateElement('checkout-modal', { event: 'close-modal click' });
-                    if (checkoutModal) checkoutModal.classList.remove('visible');
+                // Hamburger menu
+                const hamburger = validateElement('hamburger', { event: 'DOMContentLoaded' });
+                const navUl = document.querySelector('nav ul');
+                if (hamburger && navUl) {
+                    hamburger.addEventListener('click', () => {
+                        navUl.classList.toggle('active');
+                    });
+                }
+
+                // Cart view
+                const cartIcon = validateElement('cart-icon', { event: 'DOMContentLoaded' });
+                const cartView = validateElement('cart-view', { event: 'DOMContentLoaded' });
+                const closeCart = validateElement('close-cart', { event: 'DOMContentLoaded' });
+                if (cartIcon && cartView && closeCart) {
+                    cartIcon.addEventListener('click', () => {
+                        cartView.classList.add('visible');
+                        updateCartView();
+                    });
+                    closeCart.addEventListener('click', () => cartView.classList.remove('visible'));
+                }
+
+                // Checkout
+                const checkoutBtn = validateElement('checkout-btn', { event: 'DOMContentLoaded' });
+                if (checkoutBtn) {
+                    checkoutBtn.addEventListener('click', () => {
+                        cartView.classList.remove('visible');
+                        showCheckoutModal();
+                    });
+                }
+
+                // Confirm order
+                const confirmOrder = validateElement('confirm-order', { event: 'DOMContentLoaded' });
+                const closeModal = validateElement('close-modal', { event: 'DOMContentLoaded' });
+                if (confirmOrder && closeModal) {
+                    confirmOrder.addEventListener('click', processPayment);
+                    closeModal.addEventListener('click', () => document.getElementById('checkout-modal').classList.remove('visible'));
+                }
+
+                // Cart item controls
+                document.getElementById('cart-items').addEventListener('click', (e) => {
+                    try {
+                        const target = e.target;
+                        const cartItem = target.closest('.cart-item');
+                        if (!cartItem) return;
+                        const productId = cartItem.dataset.productId;
+
+                        if (target.classList.contains('increment')) {
+                            cart[productId].quantity = (cart[productId].quantity || 0) + 1;
+                            localStorage.setItem('cart', JSON.stringify(cart));
+                            updateCartView();
+                        } else if (target.classList.contains('decrement')) {
+                            if (cart[productId].quantity > 1) {
+                                cart[productId].quantity -= 1;
+                                localStorage.setItem('cart', JSON.stringify(cart));
+                                updateCartView();
+                            }
+                        } else if (target.classList.contains('remove')) {
+                            cartItem.classList.add('removing');
+                            setTimeout(() => {
+                                delete cart[productId];
+                                localStorage.setItem('cart', JSON.stringify(cart));
+                                updateCartView();
+                            }, 300);
+                        }
+                    } catch (error) {
+                        logErrorToWebhook(error, { function: 'cartItemsClick' });
+                    }
                 });
 
+                document.getElementById('cart-items').addEventListener('change', (e) => {
+                    try {
+                        if (e.target.tagName === 'INPUT') {
+                            const cartItem = e.target.closest('.cart-item');
+                            if (!cartItem) return;
+                            const productId = cartItem.dataset.productId;
+                            const newQuantity = parseInt(e.target.value, 10);
+                            if (newQuantity >= 1) {
+                                cart[productId].quantity = newQuantity;
+                                localStorage.setItem('cart', JSON.stringify(cart));
+                                updateCartView();
+                            } else {
+                                e.target.value = cart[productId].quantity;
+                            }
+                        }
+                    } catch (error) {
+                        logErrorToWebhook(error, { function: 'cartItemsChange' });
+                    }
+                });
+
+                // Add to cart
                 document.querySelectorAll('.add-to-cart-btn').forEach(button => {
                     button.addEventListener('click', () => {
-                        const id = button.dataset.productId;
-                        if (!id || !productDetails[id]) {
-                            logErrorToWebhook(new Error('Invalid product ID for add to cart'), { event: 'add-to-cart', productId: id });
-                            return;
+                        try {
+                            const productId = button.dataset.productId;
+                            if (!productDetails[productId]) throw new Error(`Product not found: ${productId}`);
+                            cart[productId] = cart[productId] || { quantity: 0 };
+                            cart[productId].quantity += 1;
+                            localStorage.setItem('cart', JSON.stringify(cart));
+                            updateCartCount();
+                            alert(`${productDetails[productId].name} added to cart!`);
+                        } catch (error) {
+                            logErrorToWebhook(error, { function: 'addToCart', productId: button.dataset.productId });
                         }
-                        cart[id] = { quantity: (cart[id]?.quantity || 0) + 1 };
-                        updateCartView();
                     });
                 });
 
-                document.getElementById('cart-items')?.addEventListener('click', (e) => {
-                    const cartItem = e.target.closest('.cart-item');
-                    if (!cartItem) return;
-                    const id = cartItem.dataset.productId;
-                    if (e.target.classList.contains('increment')) {
-                        updateQuantity(id, (cart[id]?.quantity || 0) + 1);
-                    } else if (e.target.classList.contains('decrement')) {
-                        updateQuantity(id, (cart[id]?.quantity || 0) - 1);
-                    } else if (e.target.classList.contains('remove')) {
-                        removeFromCart(id);
-                    }
-                });
-
-                document.getElementById('cart-items')?.addEventListener('change', (e) => {
-                    if (e.target.type === 'number') {
-                        const cartItem = e.target.closest('.cart-item');
-                        if (cartItem) {
-                            const id = cartItem.dataset.productId;
-                            updateQuantity(id, e.target.value);
-                        }
-                    }
-                });
-
-                document.getElementById('search-input')?.addEventListener('input', (e) => {
-                    const clearSearch = validateElement('clear-search', { event: 'search-input input' });
-                    if (clearSearch) {
+                // Search
+                const searchInput = validateElement('search-input', { event: 'DOMContentLoaded' });
+                const clearSearch = validateElement('clear-search', { event: 'DOMContentLoaded' });
+                if (searchInput && clearSearch) {
+                    searchInput.addEventListener('input', (e) => {
                         clearSearch.style.display = e.target.value ? 'block' : 'none';
-                    }
-                    performSearch(e.target.value);
-                });
-
-                document.getElementById('clear-search')?.addEventListener('click', () => {
-                    const searchInput = validateElement('search-input', { event: 'clear-search click' });
-                    const clearSearch = validateElement('clear-search', { event: 'clear-search click' });
-                    const autocomplete = validateElement('autocomplete', { event: 'clear-search click' });
-                    const noResults = validateElement('no-results', { event: 'clear-search click' });
-                    if (searchInput && clearSearch && autocomplete && noResults) {
+                        searchProducts(e.target.value);
+                    });
+                    clearSearch.addEventListener('click', () => {
                         searchInput.value = '';
                         clearSearch.style.display = 'none';
-                        autocomplete.style.display = 'none';
-                        noResults.style.display = 'none';
-                        document.querySelectorAll('.grid-item').forEach(item => item.classList.remove('hidden'));
-                    }
-                });
+                        searchProducts('');
+                    });
+                }
 
-                document.getElementById('checkout-btn')?.addEventListener('click', showCheckoutModal);
-                document.getElementById('confirm-order')?.addEventListener('click', processPayment);
-
-                document.getElementById('contact-form')?.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    try {
-                        const name = sanitizeInput(document.getElementById('name')?.value || '');
-                        const email = sanitizeInput(document.getElementById('email')?.value || '');
-                        const message = sanitizeInput(document.getElementById('message')?.value || '');
-                        const feedback = validateElement('contact-feedback', { event: 'contact-form submit' });
-                        if (!name || !email || !message || !feedback) throw new Error('Invalid contact form data');
-
-                        const response = await fetch('/send-contact', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ name, email, message })
-                        });
-                        if (response.ok) {
-                            feedback.textContent = 'Message sent successfully!';
-                            feedback.style.color = '#A37E2C';
-                            document.getElementById('contact-form').reset();
-                        } else {
-                            throw new Error('Failed to send contact message');
+                // Contact form
+                const contactForm = validateElement('contact-form', { event: 'DOMContentLoaded' });
+                const contactFeedback = validateElement('contact-feedback', { event: 'DOMContentLoaded' });
+                if (contactForm && contactFeedback) {
+                    contactForm.addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        try {
+                            const name = sanitizeInput(document.getElementById('name').value);
+                            const email = sanitizeInput(document.getElementById('email').value);
+                            const message = sanitizeInput(document.getElementById('message').value);
+                            const response = await fetch(`${BACKEND_URL}/send-contact`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ name, email, message })
+                            });
+                            if (response.ok) {
+                                contactFeedback.textContent = 'Message sent successfully!';
+                                contactFeedback.style.color = 'var(--gold-accent)';
+                                contactForm.reset();
+                            } else {
+                                throw new Error('Failed to send message');
+                            }
+                        } catch (error) {
+                            logErrorToWebhook(error, { function: 'contactFormSubmit' });
+                            contactFeedback.textContent = 'Failed to send message. Please try again.';
+                            contactFeedback.style.color = '#ff5555';
                         }
-                    } catch (error) {
-                        logErrorToWebhook(error, { event: 'contact-form submit' });
-                        const feedback = document.getElementById('contact-feedback');
-                        if (feedback) {
-                            feedback.textContent = 'Failed to send message. Please try again.';
-                            feedback.style.color = '#ff5555';
-                        }
-                    }
-                });
+                    });
+                }
 
-                window.addEventListener('scroll', () => {
-                    const backToTop = validateElement('back-to-top', { event: 'scroll' });
-                    if (backToTop) {
+                // Back to top
+                const backToTop = validateElement('back-to-top', { event: 'DOMContentLoaded' });
+                if (backToTop) {
+                    window.addEventListener('scroll', () => {
                         backToTop.style.display = window.scrollY > 300 ? 'block' : 'none';
-                    }
-                });
+                    });
+                    backToTop.addEventListener('click', () => {
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                    });
+                }
 
-                document.getElementById('back-to-top')?.addEventListener('click', () => {
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                });
+                // Shipping service change
+                const shippingService = document.getElementById('shipping-service');
+                if (shippingService) {
+                    shippingService.addEventListener('change', updateCartView);
+                }
+                const isInternational = document.getElementById('is-international');
+                if (isInternational) {
+                    isInternational.addEventListener('change', updateCartView);
+                }
             } catch (error) {
                 logErrorToWebhook(error, { event: 'DOMContentLoaded' });
             }
